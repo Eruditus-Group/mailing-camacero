@@ -68,6 +68,17 @@
   iframe.preview { width: 100%; height: 560px; border: 1px solid #cdd8e3; border-radius: 8px; background: #fff; }
   footer { text-align: center; color: #8b98a8; font-size: 12px; padding: 16px; }
   .copy-ok { color: #16a34a; font-weight: 700; font-size: 13px; display: none; }
+  .hist-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    padding: 10px 12px; border: 1px solid #e2e8ee; border-radius: 8px; margin-bottom: 8px; background: #fbfcfd;
+  }
+  .hist-item .f { font-weight: 700; color: #1a2a3a; font-size: 14px; }
+  .hist-item button {
+    background: #f0f4f8; border: 1px solid #cdd8e3; border-radius: 6px; padding: 6px 10px;
+    font-size: 12px; font-weight: 700; cursor: pointer; margin-left: 6px; color: #1a2a3a;
+  }
+  .hist-item button.del { border-color: #f3c0c0; color: #dc2626; }
+  #histCard h2 span button { font-size: 11px; padding: 6px 10px; }
 </style>
 </head>
 <body>
@@ -150,10 +161,10 @@
       </div>
 
       <!-- INDICADORES FINANCIEROS -->
-      <div class="card" style="background:#22344a; color:#fff;">
+      <div class="card" style="background:#8a2323; color:#fff;">
         <h2 style="color:#fff; border-bottom-color:#DD6420;">Indicadores financieros</h2>
 
-        <label style="color:#9fb2c5;">Tasa Banco de la República</label>
+        <label style="color:#e8cbc7;">Tasa Banco de la República</label>
         <div class="row">
           <input type="text" id="br_val" placeholder="ej. 12,0%">
           <select class="arrow-sel" id="br_arrow">
@@ -161,7 +172,7 @@
           </select>
           <input type="text" id="br_note" placeholder="Nota (opcional)">
         </div>
-        <label style="color:#9fb2c5;">IBR overnight</label>
+        <label style="color:#e8cbc7;">IBR overnight</label>
         <div class="row">
           <input type="text" id="ibr_val" placeholder="ej. ≈12,0%">
           <select class="arrow-sel" id="ibr_arrow">
@@ -169,7 +180,7 @@
           </select>
           <input type="text" id="ibr_note" placeholder="Nota (opcional)">
         </div>
-        <label style="color:#9fb2c5;">Tasa SOFR (EE.UU.)</label>
+        <label style="color:#e8cbc7;">Tasa SOFR (EE.UU.)</label>
         <div class="row">
           <input type="text" id="sofr_val" placeholder="ej. 3,85%">
           <select class="arrow-sel" id="sofr_arrow">
@@ -177,7 +188,7 @@
           </select>
           <input type="text" id="sofr_note" placeholder="Nota (opcional)">
         </div>
-        <label style="color:#9fb2c5;">Reservas internacionales</label>
+        <label style="color:#e8cbc7;">Reservas internacionales</label>
         <div class="row">
           <input type="text" id="res_val" placeholder="ej. US$62.481M">
           <select class="arrow-sel" id="res_arrow">
@@ -185,7 +196,7 @@
           </select>
           <input type="text" id="res_note" placeholder="Nota (opcional)">
         </div>
-        <label style="color:#9fb2c5;">Mineral de hierro (Dalian)</label>
+        <label style="color:#e8cbc7;">Mineral de hierro (Dalian)</label>
         <div class="row">
           <input type="text" id="iron_val" placeholder="ej. 708,00 CNY/t">
           <select class="arrow-sel" id="iron_arrow">
@@ -193,7 +204,7 @@
           </select>
           <input type="text" id="iron_note" placeholder="Nota (opcional)">
         </div>
-        <label style="color:#9fb2c5;">Carbón metalúrgico</label>
+        <label style="color:#e8cbc7;">Carbón metalúrgico</label>
         <div class="row">
           <input type="text" id="coal_val" placeholder="ej. US$221/t">
           <select class="arrow-sel" id="coal_arrow">
@@ -201,7 +212,7 @@
           </select>
           <input type="text" id="coal_note" placeholder="Nota (opcional)">
         </div>
-        <label style="color:#9fb2c5;">Baltic Dry Index</label>
+        <label style="color:#e8cbc7;">Baltic Dry Index</label>
         <div class="row">
           <input type="text" id="bdi_val" placeholder="ej. 3.430 pts">
           <select class="arrow-sel" id="bdi_arrow">
@@ -229,6 +240,15 @@
       <h2>Código HTML (pegar en Mailchimp)</h2>
       <textarea id="textarea-html" spellcheck="false" readonly></textarea>
     </div>
+  </div>
+
+<div class="card" id="histCard" style="display:none;">
+    <h2>Historial de boletines guardados
+      <span style="float:right;">
+        <button class="btn-add" style="border-color:#dc2626; color:#dc2626; background:#fff;" onclick="vaciarHistorial()">🗑 Vaciar</button>
+      </span>
+    </h2>
+    <div id="histList"></div>
   </div>
 
 </main>
@@ -447,18 +467,18 @@ function generar(){
           </td>
         </tr>
         <tr>
-          <td style="background-color:#1a2a3a; padding:24px 32px 12px 32px;">
+          <td style="background-color:#7f1d1d; padding:24px 32px 12px 32px;">
             <div style="border-left:4px solid #DD6420; padding-left:12px;"><div style="color:#ffffff; font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:1px;">Indicadores financieros</div></div>
           </td>
         </tr>
-        <tr><td style="background-color:#22344a; padding:16px 32px 4px 32px;"><div style="color:#9fb2c5; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;">Tasas de interés</div></td></tr>
-        <tr><td style="background-color:#22344a; padding:4px 32px 0 32px;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">${tasas}</table></td></tr>
-        <tr><td style="background-color:#22344a; padding:16px 32px 4px 32px;"><div style="color:#9fb2c5; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;">Reservas</div></td></tr>
-        <tr><td style="background-color:#22344a; padding:4px 32px 0 32px;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">${reservas}</table></td></tr>
-        <tr><td style="background-color:#22344a; padding:16px 32px 4px 32px;"><div style="color:#9fb2c5; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;">Precios internacionales</div></td></tr>
-        <tr><td style="background-color:#22344a; padding:4px 32px 24px 32px;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">${precios}</table></td></tr>
+        <tr><td style="background-color:#8a2323; padding:16px 32px 4px 32px;"><div style="color:#e8cbc7; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;">Tasas de interés</div></td></tr>
+        <tr><td style="background-color:#8a2323; padding:4px 32px 0 32px;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">${tasas}</table></td></tr>
+        <tr><td style="background-color:#8a2323; padding:16px 32px 4px 32px;"><div style="color:#e8cbc7; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;">Reservas</div></td></tr>
+        <tr><td style="background-color:#8a2323; padding:4px 32px 0 32px;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">${reservas}</table></td></tr>
+        <tr><td style="background-color:#8a2323; padding:16px 32px 4px 32px;"><div style="color:#e8cbc7; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:1.5px;">Precios internacionales</div></td></tr>
+        <tr><td style="background-color:#8a2323; padding:4px 32px 24px 32px;"><table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">${precios}</table></td></tr>
         <tr>
-          <td style="background-color:#1a2a3a; border-radius:0 0 8px 8px; padding:20px 32px 24px 32px;">
+          <td style="background-color:#7f1d1d; border-radius:0 0 8px 8px; padding:20px 32px 24px 32px;">
             <table role="presentation" width="100%" border="0" cellpadding="0" cellspacing="0">
               <tr><td align="center">
                 <div style="color:#8b98a8; font-size:12px; line-height:1.6;">
@@ -488,11 +508,17 @@ function generar(){
   fr.srcdoc = email;
   window.__email = email;
   guardar();
+  guardarHistorial(email);
+  renderHistorial();
   document.getElementById("out").scrollIntoView({ behavior: "smooth" });
 }
 
 function descargar(){
-  const blob = new Blob([window.__email], { type: "text/html;charset=utf-8" });
+  descargarCon(window.__email);
+}
+
+function descargarCon(email){
+  const blob = new Blob([email], { type: "text/html;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "boletin-camacero-" + new Date().toISOString().slice(0,10) + ".html";
@@ -505,9 +531,78 @@ function copiar(){
   });
 }
 
+// ---------- Historial de boletines ----------
+function getHistorial(){
+  try { return JSON.parse(localStorage.getItem("historial_camacero") || "[]"); } catch(e) { return []; }
+}
+function guardarHistorial(email){
+  const fecha = document.getElementById("fecha").value.trim() || "Sin fecha";
+  const hora = new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+  const list = getHistorial().filter(function(x){ return x.fecha !== fecha; });
+  list.unshift({ fecha: fecha, hora: hora, email: email });
+  localStorage.setItem("historial_camacero", JSON.stringify(list));
+}
+function renderHistorial(){
+  const list = getHistorial();
+  const card = document.getElementById("histCard");
+  const el = document.getElementById("histList");
+  if (!card) return;
+  card.style.display = list.length ? "block" : "none";
+  if (!list.length){
+    el.innerHTML = '<div class="hint">Aún no hay boletines guardados. Al pulsar GENERAR se guardan aquí automáticamente.</div>';
+    return;
+  }
+  el.innerHTML = list.map(function(x, i){
+    return '<div class="hist-item"><span class="f">' + esc(x.fecha) +
+      ' <span class="hint">(' + esc(x.hora) + ')</span></span>' +
+      '<span><button onclick="verHist(' + i + ')">Ver</button>' +
+      '<button onclick="copiarHist(' + i + ')">Copiar</button>' +
+      '<button onclick="descargarHist(' + i + ')">Descargar</button>' +
+      '<button class="del" onclick="eliminarHist(' + i + ')">✕</button></span></div>';
+  }).join("");
+}
+function verHist(i){
+  const x = getHistorial()[i];
+  if (!x) return;
+  window.__email = x.email;
+  document.getElementById("textarea-html").value = x.email;
+  document.getElementById("out").style.display = "block";
+  document.getElementById("btnDescarga").style.display = "inline-block";
+  document.getElementById("btnCopiar").style.display = "inline-block";
+  document.getElementById("copyOk").style.display = "none";
+  document.getElementById("preview").srcdoc = x.email;
+  document.getElementById("out").scrollIntoView({ behavior: "smooth" });
+}
+function copiarHist(i){
+  const x = getHistorial()[i];
+  if (!x) return;
+  navigator.clipboard.writeText(x.email).then(function(){
+    document.getElementById("copyOk").style.display = "inline";
+    setTimeout(function(){ document.getElementById("copyOk").style.display = "none"; }, 2000);
+  });
+}
+function descargarHist(i){
+  const x = getHistorial()[i];
+  if (!x) return;
+  descargarCon(x.email);
+}
+function eliminarHist(i){
+  if (!confirm("¿Eliminar este boletín del historial?")) return;
+  const list = getHistorial();
+  list.splice(i, 1);
+  localStorage.setItem("historial_camacero", JSON.stringify(list));
+  renderHistorial();
+}
+function vaciarHistorial(){
+  if (!confirm("¿Borrar todo el historial de boletines?")) return;
+  localStorage.removeItem("historial_camacero");
+  renderHistorial();
+}
+
 // Guardar datos al salir/cambiar
 window.addEventListener("beforeunload", guardar);
 cargar();
+renderHistorial();
 </script>
 </body>
 </html>
