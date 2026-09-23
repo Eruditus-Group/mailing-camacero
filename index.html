@@ -78,6 +78,10 @@
     font-size: 12px; font-weight: 700; cursor: pointer; margin-left: 6px; color: #1a2a3a;
   }
   .hist-item button.del { border-color: #f3c0c0; color: #dc2626; }
+  .hist-item a.pub {
+    display: inline-block; background: #DD6420; border-radius: 6px; padding: 6px 10px;
+    font-size: 12px; font-weight: 800; cursor: pointer; margin-left: 6px; color: #fff; text-decoration: none;
+  }
   #histCard h2 span button { font-size: 11px; padding: 6px 10px; }
   .overlay {
     position: fixed; inset: 0; background: rgba(15,23,42,.7); z-index: 100;
@@ -628,6 +632,14 @@ function getApiUrl(){
   return saved || "api.php";
 }
 
+function publicUrl(x){
+  let url = getApiUrl();
+  const slash = url.lastIndexOf("/");
+  const base = slash >= 0 ? url.slice(0, slash + 1) : "";
+  const iso = (x && x.iso) || "";
+  return base + "ver-boletin.php?fecha=" + encodeURIComponent(iso);
+}
+
 async function apiCall(action, extra){
   const url = getApiUrl();
   if (!url) return null;
@@ -699,11 +711,13 @@ async function renderHistorial(){
     return;
   }
   el.innerHTML = list.map(function(x, i){
+    const pub = publicUrl(x);
     return '<div class="hist-item"><span class="f">' + esc(x.fecha) +
       ' <span class="hint">(' + esc(x.hora) + ' · ' + esc(x.iso) + ')</span></span>' +
       '<span><button onclick="verHist(' + i + ')">Ver</button>' +
       '<button onclick="copiarHist(' + i + ')">Copiar</button>' +
       '<button onclick="descargarHist(' + i + ')">Descargar</button>' +
+      '<a class="pub" href="' + esc(pub) + '" target="_blank">Publicar ↗</a>' +
       '<button class="del" onclick="eliminarHist(' + i + ')">✕</button></span></div>';
   }).join("");
 }
