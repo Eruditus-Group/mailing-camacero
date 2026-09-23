@@ -114,6 +114,31 @@
     </div>
   </div>
 
+  <div class="card" id="syncCard">
+    <h2>Sincronización en la nube (Supabase)</h2>
+    <p class="hint" style="margin:0 0 4px;">Crea un proyecto gratis en <b>supabase.com</b>, copia la <b>URL</b> y la <b>clave pública (anon)</b> y pégalas aquí para que el historial sea compartido por todo el equipo.</p>
+    <div class="row">
+      <div style="flex:2;">
+        <label>Supabase URL</label>
+        <input type="text" id="sb_url" placeholder="https://xxxx.supabase.co">
+      </div>
+      <div style="flex:3;">
+        <label>Clave pública (anon key)</label>
+        <input type="text" id="sb_key" placeholder="eyJhbGciOi...">
+      </div>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+      <button class="btn-add" onclick="guardarSync()">Guardar claves</button>
+      <button class="btn-add" onclick="probarSync()">Probar conexión</button>
+      <span id="syncStatus" style="font-size:12px;"></span>
+    </div>
+    <div class="hint" style="margin-top:8px;">
+      Pasos: 1) Entra a supabase.com → crea proyecto → SQL Editor.&nbsp;
+      2) Pega y ejecuta: <code style="background:#f0f4f8;padding:1px 6px;border-radius:4px;">copiar el SQL que te doy</code>.&nbsp;
+      3) En Settings → API copia Project URL y anon key.
+    </div>
+  </div>
+
   <div class="column">
     <!-- NOTICIAS -->
     <div class="card">
@@ -531,19 +556,83 @@ function copiar(){
   });
 }
 
-// ---------- Historial de boletines ----------
-function getHistorial(){
+// ---------- Historial de boletines (local + Supabase) ----------
+let HIST = [];
+
+function getLocalHist(){
   try { return JSON.parse(localStorage.getItem("historial_camacero") || "[]"); } catch(e) { return []; }
 }
-function guardarHistorial(email){
-  const fecha = document.getElementById("fecha").value.trim() || "Sin fecha";
-  const hora = new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
-  const list = getHistorial().filter(function(x){ return x.fecha !== fecha; });
-  list.unshift({ fecha: fecha, hora: hora, email: email });
-  localStorage.setItem("historial_camacero", JSON.stringify(list));
+
+function loadSupabaseSDK(){
+  return new Promise(function(res, rej){
+    if (typeof supabase !== "undefined") return res();
+    const s = document.createElement("script");
+    s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+    s.onload = function(){ res(); };
+    s.onerror = function(){ rej(new Error("No se pudo cargar supabase-js")); };
+    document.head.appendChild(s);
+  });
 }
-function renderHistorial(){
-  const list = getHistorial();
+
+async function getCloudClient(){
+  try { await loadSupabaseSDK(); } catch(e) { return null; }
+  if (typeof supabase === "undefined") return null;
+  const url = (localStorage.getItem("sb_url") || "").trim();
+  const key = (localStorage.getItem("sb_key") || "").trim();
+  if (!url || !key) return null;
+  try { return supabase.createClient(url, key); } catch(e) { return null; }
+}
+
+function setStatus(txt, ok){
+  const el = document.getElementById("syncStatus");
+  if (!el) return;
+  el.textContent = txt;
+  el.style.color = ok ? "#16a34a" : "#DC6420";
+}
+
+async function guardarHistorial(email){
+  const fecha = (document.getElementById("fecha").value || "").trim() || "Sin fecha";
+  const hora = new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" });
+  const iso = document.getElementById("fechaPicker").value || new Date().toISOString().slice(0, 10);
+  const local = getLocalHist().filter(function(x){ return x.fecha !== fecha; });
+  local.unshift({ fecha: fecha, hora: hora, iso: iso, email: email });
+  localStorage.setItem("historial_camacero", JSON.stringify(local));
+  const sb = await getCloudClient();
+  if (sb){
+    const { error } = await sb.from("boletines").upsert(
+      { fecha: fecha, fecha_iso: iso, hora: hora, html: email, actualizado_en: new Date().toISOString() },
+      { onConflict: "fecha" }
+    );
+    if (error) setStatus("Aviso nube: " + error.message, false);
+    else setStatus("Sincronizado en la nube (" + iso + ") ✓", true);
+  } else {
+    setStatus("Solo en este navegador — configura Supabase para compartir.", false);
+  }
+  await renderHistorial();
+}
+
+async function renderHistorial(){
+  const sb = await getCloudClient();
+  let list;
+  if (sb){
+    const { data, error } = await sb.from("boletines")
+      .select("fecha, fecha_iso, hora, html")
+      .order("fecha_iso", { ascending: false });
+    if (error) {
+      list = getLocalHist();
+      setStatus("No se pudo leer la nube: " + error.message, false);
+    } else {
+      list = (data || []).map(function(r){
+        return { fecha: r.fecha, hora: r.hora || "", iso: r.fecha_iso || "", email: r.html };
+      });
+      localStorage.setItem("historial_camacero", JSON.stringify(list));
+      setStatus("Conectado a la nube · " + list.length + " boletines", true);
+    }
+  } else {
+    list = getLocalHist();
+    setStatus("Solo en este navegador — configura Supabase para compartir.", false);
+  }
+  HIST = list;
   const card = document.getElementById("histCard");
   const el = document.getElementById("histList");
   if (!card) return;
@@ -554,15 +643,16 @@ function renderHistorial(){
   }
   el.innerHTML = list.map(function(x, i){
     return '<div class="hist-item"><span class="f">' + esc(x.fecha) +
-      ' <span class="hint">(' + esc(x.hora) + ')</span></span>' +
+      ' <span class="hint">(' + esc(x.hora) + ' · ' + esc(x.iso) + ')</span></span>' +
       '<span><button onclick="verHist(' + i + ')">Ver</button>' +
       '<button onclick="copiarHist(' + i + ')">Copiar</button>' +
       '<button onclick="descargarHist(' + i + ')">Descargar</button>' +
       '<button class="del" onclick="eliminarHist(' + i + ')">✕</button></span></div>';
   }).join("");
 }
+
 function verHist(i){
-  const x = getHistorial()[i];
+  const x = HIST[i];
   if (!x) return;
   window.__email = x.email;
   document.getElementById("textarea-html").value = x.email;
@@ -574,7 +664,7 @@ function verHist(i){
   document.getElementById("out").scrollIntoView({ behavior: "smooth" });
 }
 function copiarHist(i){
-  const x = getHistorial()[i];
+  const x = HIST[i];
   if (!x) return;
   navigator.clipboard.writeText(x.email).then(function(){
     document.getElementById("copyOk").style.display = "inline";
@@ -582,26 +672,61 @@ function copiarHist(i){
   });
 }
 function descargarHist(i){
-  const x = getHistorial()[i];
+  const x = HIST[i];
   if (!x) return;
   descargarCon(x.email);
 }
-function eliminarHist(i){
+async function eliminarHist(i){
   if (!confirm("¿Eliminar este boletín del historial?")) return;
-  const list = getHistorial();
-  list.splice(i, 1);
-  localStorage.setItem("historial_camacero", JSON.stringify(list));
-  renderHistorial();
+  const x = HIST[i];
+  if (!x) return;
+  const sb = await getCloudClient();
+  if (sb) await sb.from("boletines").delete().eq("fecha", x.fecha);
+  await renderHistorial();
 }
-function vaciarHistorial(){
-  if (!confirm("¿Borrar todo el historial de boletines?")) return;
+async function vaciarHistorial(){
+  if (!confirm("¿Borrar TODO el historial (nube incluida)?")) return;
+  const sb = await getCloudClient();
+  if (sb){
+    const { data } = await sb.from("boletines").select("fecha");
+    for (const r of (data || [])) await sb.from("boletines").delete().eq("fecha", r.fecha);
+  }
   localStorage.removeItem("historial_camacero");
-  renderHistorial();
+  await renderHistorial();
+}
+
+// ---------- Configuración Supabase ----------
+function cargarSync(){
+  const u = localStorage.getItem("sb_url");
+  const k = localStorage.getItem("sb_key");
+  if (u) document.getElementById("sb_url").value = u;
+  if (k) document.getElementById("sb_key").value = k;
+}
+function guardarSync(){
+  const u = document.getElementById("sb_url").value.trim();
+  const k = document.getElementById("sb_key").value.trim();
+  if (!u || !k){ alert("Completa la URL y la clave pública."); return; }
+  localStorage.setItem("sb_url", u);
+  localStorage.setItem("sb_key", k);
+  setStatus("Claves guardadas. Probando conexión…", false);
+  probarSync();
+}
+async function probarSync(){
+  const sb = await getCloudClient();
+  if (!sb){ setStatus("Falta configurar la URL y clave.", false); return; }
+  const { data, error } = await sb.from("boletines").select("fecha");
+  if (error){
+    setStatus("Error: " + error.message + ". ¿Ejecutaste el SQL?", false);
+  } else {
+    setStatus("¡Conexión OK! " + (data ? data.length : 0) + " boletines en la nube", true);
+    await renderHistorial();
+  }
 }
 
 // Guardar datos al salir/cambiar
 window.addEventListener("beforeunload", guardar);
 cargar();
+cargarSync();
 renderHistorial();
 </script>
 </body>
