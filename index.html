@@ -115,27 +115,23 @@
   </div>
 
   <div class="card" id="syncCard">
-    <h2>Sincronización en la nube (Supabase)</h2>
-    <p class="hint" style="margin:0 0 4px;">Crea un proyecto gratis en <b>supabase.com</b>, copia la <b>URL</b> y la <b>clave pública (anon)</b> y pégalas aquí para que el historial sea compartido por todo el equipo.</p>
+    <h2>Sincronización en la nube (MySQL Hostinger)</h2>
+    <p class="hint" style="margin:0 0 4px;">Sube los archivos <b>api.php</b> y <b>config.php</b> a tu hosting (junto a este index.html), importa <b>boletines.sql</b> en phpMyAdmin y pega aquí la URL de la API para que el historial sea compartido por todo el equipo.</p>
     <div class="row">
       <div style="flex:2;">
-        <label>Supabase URL</label>
-        <input type="text" id="sb_url" placeholder="https://xxxx.supabase.co">
-      </div>
-      <div style="flex:3;">
-        <label>Clave pública (anon key)</label>
-        <input type="text" id="sb_key" placeholder="eyJhbGciOi...">
+        <label>URL de la API (api.php)</label>
+        <input type="text" id="api_url" placeholder="https://tudominio.com/boletin/api.php">
       </div>
     </div>
     <div style="display:flex; gap:10px; align-items:center; margin-top:10px; flex-wrap:wrap;">
-      <button class="btn-add" onclick="guardarSync()">Guardar claves</button>
+      <button class="btn-add" onclick="guardarSync()">Guardar URL</button>
       <button class="btn-add" onclick="probarSync()">Probar conexión</button>
       <span id="syncStatus" style="font-size:12px;"></span>
     </div>
     <div class="hint" style="margin-top:8px;">
-      Pasos: 1) Entra a supabase.com → crea proyecto → SQL Editor.&nbsp;
-      2) Pega y ejecuta: <code style="background:#f0f4f8;padding:1px 6px;border-radius:4px;">copiar el SQL que te doy</code>.&nbsp;
-      3) En Settings → API copia Project URL y anon key.
+      Pasos: 1) En hPanel → Bases de datos → MySQL, crea la BD y anota usuario, contraseña y nombre.&nbsp;
+      2) En phpMyAdmin importa <b>boletines.sql</b>.&nbsp;
+      3) Edita <b>config.php</b> con esos datos y súbelo junto a <b>api.php</b> a tu hosting.
     </div>
   </div>
 
@@ -556,31 +552,33 @@ function copiar(){
   });
 }
 
-// ---------- Historial de boletines (local + Supabase) ----------
+// ---------- Historial de boletines (local + MySQL vía api.php) ----------
 let HIST = [];
 
 function getLocalHist(){
   try { return JSON.parse(localStorage.getItem("historial_camacero") || "[]"); } catch(e) { return []; }
 }
 
-function loadSupabaseSDK(){
-  return new Promise(function(res, rej){
-    if (typeof supabase !== "undefined") return res();
-    const s = document.createElement("script");
-    s.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
-    s.onload = function(){ res(); };
-    s.onerror = function(){ rej(new Error("No se pudo cargar supabase-js")); };
-    document.head.appendChild(s);
-  });
+function getApiUrl(){
+  return (localStorage.getItem("api_url") || "").trim();
 }
 
-async function getCloudClient(){
-  try { await loadSupabaseSDK(); } catch(e) { return null; }
-  if (typeof supabase === "undefined") return null;
-  const url = (localStorage.getItem("sb_url") || "").trim();
-  const key = (localStorage.getItem("sb_key") || "").trim();
-  if (!url || !key) return null;
-  try { return supabase.createClient(url, key); } catch(e) { return null; }
+async function apiCall(action, extra){
+  const url = getApiUrl();
+  if (!url) return null;
+  const body = Object.assign({ action: action }, extra || {});
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const ct = res.headers.get("content-type") || "";
+    if (ct.indexOf("application/json") === -1) return { ok:false, error: "La URL no responde JSON (¿subiste api.php y config.php al hosting?)" };
+    return await res.json();
+  } catch(e) {
+    return { ok:false, error: "Sin conexión: " + e.message };
+  }
 }
 
 function setStatus(txt, ok){
@@ -596,41 +594,29 @@ async function guardarHistorial(email){
   const iso = document.getElementById("fechaPicker").value || new Date().toISOString().slice(0, 10);
   const local = getLocalHist().filter(function(x){ return x.fecha !== fecha; });
   local.unshift({ fecha: fecha, hora: hora, iso: iso, email: email });
-  localStorage.setItem("historial_camacero", JSON.stringify(local));
-  const sb = await getCloudClient();
-  if (sb){
-    const { error } = await sb.from("boletines").upsert(
-      { fecha: fecha, fecha_iso: iso, hora: hora, html: email, actualizado_en: new Date().toISOString() },
-      { onConflict: "fecha" }
-    );
-    if (error) setStatus("Aviso nube: " + error.message, false);
-    else setStatus("Sincronizado en la nube (" + iso + ") ✓", true);
-  } else {
-    setStatus("Solo en este navegador — configura Supabase para compartir.", false);
-  }
+localStorage.setItem("historial_camacero", JSON.stringify(local));
+  const res = await apiCall("save", { fecha: fecha, fecha_iso: iso, hora: hora, html: email });
+  if (!res) setStatus("Guardado solo en este navegador — pega la URL de la API para compartir.", false);
+  else if (res.ok) setStatus("Guardado en MySQL (Hostinger) ✓", true);
+  else setStatus("Error MySQL: " + res.error, false);
   await renderHistorial();
 }
 
 async function renderHistorial(){
-  const sb = await getCloudClient();
+  const res = await apiCall("list", {});
   let list;
-  if (sb){
-    const { data, error } = await sb.from("boletines")
-      .select("fecha, fecha_iso, hora, html")
-      .order("fecha_iso", { ascending: false });
-    if (error) {
-      list = getLocalHist();
-      setStatus("No se pudo leer la nube: " + error.message, false);
-    } else {
-      list = (data || []).map(function(r){
-        return { fecha: r.fecha, hora: r.hora || "", iso: r.fecha_iso || "", email: r.html };
-      });
-      localStorage.setItem("historial_camacero", JSON.stringify(list));
-      setStatus("Conectado a la nube · " + list.length + " boletines", true);
-    }
+  if (!res){
+    list = getLocalHist();
+    setStatus("Historial local — pega la URL de la API para compartir.", false);
+  } else if (res.ok && res.rows){
+    list = (res.rows || []).map(function(r){
+      return { fecha: r.fecha, hora: r.hora || "", iso: r.fecha_iso || "", email: r.html };
+    });
+    localStorage.setItem("historial_camacero", JSON.stringify(list));
+    setStatus("MySQL conectado · " + list.length + " boletines", true);
   } else {
     list = getLocalHist();
-    setStatus("Solo en este navegador — configura Supabase para compartir.", false);
+    setStatus("Error MySQL: " + res.error, false);
   }
   HIST = list;
   const card = document.getElementById("histCard");
@@ -680,46 +666,36 @@ async function eliminarHist(i){
   if (!confirm("¿Eliminar este boletín del historial?")) return;
   const x = HIST[i];
   if (!x) return;
-  const sb = await getCloudClient();
-  if (sb) await sb.from("boletines").delete().eq("fecha", x.fecha);
+  await apiCall("delete", { fecha: x.fecha });
   await renderHistorial();
 }
 async function vaciarHistorial(){
-  if (!confirm("¿Borrar TODO el historial (nube incluida)?")) return;
-  const sb = await getCloudClient();
-  if (sb){
-    const { data } = await sb.from("boletines").select("fecha");
-    for (const r of (data || [])) await sb.from("boletines").delete().eq("fecha", r.fecha);
-  }
+  if (!confirm("¿Borrar TODO el historial (MySQL incluido)?")) return;
+  await apiCall("clear", {});
   localStorage.removeItem("historial_camacero");
   await renderHistorial();
 }
 
-// ---------- Configuración Supabase ----------
+// ---------- Configuración MySQL (Hostinger) ----------
 function cargarSync(){
-  const u = localStorage.getItem("sb_url");
-  const k = localStorage.getItem("sb_key");
-  if (u) document.getElementById("sb_url").value = u;
-  if (k) document.getElementById("sb_key").value = k;
+  const u = localStorage.getItem("api_url");
+  if (u) document.getElementById("api_url").value = u;
 }
 function guardarSync(){
-  const u = document.getElementById("sb_url").value.trim();
-  const k = document.getElementById("sb_key").value.trim();
-  if (!u || !k){ alert("Completa la URL y la clave pública."); return; }
-  localStorage.setItem("sb_url", u);
-  localStorage.setItem("sb_key", k);
-  setStatus("Claves guardadas. Probando conexión…", false);
+  const u = document.getElementById("api_url").value.trim();
+  if (!u){ alert("Pega la URL de tu api.php."); return; }
+  localStorage.setItem("api_url", u);
+  setStatus("URL guardada. Probando conexión…", false);
   probarSync();
 }
 async function probarSync(){
-  const sb = await getCloudClient();
-  if (!sb){ setStatus("Falta configurar la URL y clave.", false); return; }
-  const { data, error } = await sb.from("boletines").select("fecha");
-  if (error){
-    setStatus("Error: " + error.message + ". ¿Ejecutaste el SQL?", false);
-  } else {
-    setStatus("¡Conexión OK! " + (data ? data.length : 0) + " boletines en la nube", true);
+  const res = await apiCall("list", {});
+  if (!res){ setStatus("Falta configurar la URL de la API.", false); return; }
+  if (res.ok){
+    setStatus("¡Conexión OK! " + (res.rows ? res.rows.length : 0) + " boletines en MySQL", true);
     await renderHistorial();
+  } else {
+    setStatus("Error: " + res.error, false);
   }
 }
 
