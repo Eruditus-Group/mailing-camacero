@@ -79,9 +79,32 @@
   }
   .hist-item button.del { border-color: #f3c0c0; color: #dc2626; }
   #histCard h2 span button { font-size: 11px; padding: 6px 10px; }
+  .overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.7); z-index: 100;
+    display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px);
+  }
+  .overlay.hidden { display: none; }
+  .overlay .card { width: 340px; margin: 0; }
+  .overlay input { width: 100%; }
+  #loginErr { min-height: 14px; color: #dc2626; }
 </style>
 </head>
 <body>
+
+<div class="overlay" id="loginOverlay">
+  <div class="card">
+    <h2>Acceso · Boletín CAMACERO</h2>
+    <label>Usuario</label>
+    <input type="text" id="loginUser" autocomplete="username">
+    <label>Contraseña</label>
+    <input type="password" id="loginPass" autocomplete="current-password">
+    <div id="loginErr" class="hint">&nbsp;</div>
+    <div style="display:flex; gap:10px; margin-top:12px;">
+      <button class="btn-add" onclick="doLogin()">Entrar</button>
+      <span id="loginMsg" class="hint" style="align-self:center;">Se necesita acceso para generar y guardar boletines.</span>
+    </div>
+  </div>
+</div>
 
 <header class="app">
   <div>
@@ -89,12 +112,13 @@
     <div class="sub">Generador de HTML para Mailchimp</div>
   </div>
   <div class="actions">
+    <button class="secondary" id="btnLogout" onclick="doLogout()" style="display:none;">Salir</button>
     <button onclick="guardar()">Guardar datos</button>
     <button class="secondary" onclick="limpiar()">Limpiar</button>
   </div>
 </header>
 
-<main>
+<main id="app" style="display:none;">
 
   <div class="card">
     <h2>Fecha del boletín</h2>
@@ -552,6 +576,46 @@ function copiar(){
   });
 }
 
+// ---------- Acceso (login) ----------
+const TOKEN_KEY = "boletin_token_camacero";
+const USER_KEY  = "boletin_user_camacero";
+
+function getToken(){ try { return localStorage.getItem(TOKEN_KEY) || ""; } catch(e){ return ""; } }
+function setToken(t){ try { localStorage.setItem(TOKEN_KEY, t); } catch(e){} }
+function getUserName(){ try { return localStorage.getItem(USER_KEY) || ""; } catch(e){ return ""; } }
+function setUserName(u){ try { localStorage.setItem(USER_KEY, u); } catch(e){} }
+
+function pinApp(locked){
+  const app = document.getElementById("app");
+  const overlay = document.getElementById("loginOverlay");
+  if (app) app.style.display = locked ? "none" : "";
+  if (overlay) overlay.className = "overlay" + (locked ? "" : " hidden");
+  const btn = document.getElementById("btnLogout");
+  if (btn) btn.style.display = (locked || !getToken()) ? "none" : "inline-block";
+}
+
+async function doLogin(){
+  const user = (document.getElementById("loginUser").value || "").trim();
+  const pass = document.getElementById("loginPass").value || "";
+  const err = document.getElementById("loginErr");
+  if (err) err.textContent = "";
+  const res = await apiCall("login", { user: user, pass: pass });
+  if (res && res.ok && res.token){
+    setToken(res.token);
+    setUserName(user);
+    pinApp(false);
+    await renderHistorial();
+  } else {
+    if (err) err.textContent = (res && res.error) ? res.error : "Error de conexión.";
+  }
+}
+
+function doLogout(){
+  try { localStorage.removeItem(TOKEN_KEY); } catch(e){}
+  try { localStorage.removeItem(USER_KEY); } catch(e){}
+  pinApp(true);
+}
+
 // ---------- Historial de boletines (local + MySQL vía api.php) ----------
 let HIST = [];
 
@@ -571,12 +635,18 @@ async function apiCall(action, extra){
   try {
     const res = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Authorization": "Bearer " + getToken() },
       body: JSON.stringify(body)
     });
     const ct = res.headers.get("content-type") || "";
     if (ct.indexOf("application/json") === -1) return { ok:false, error: "La URL no responde JSON (¿subiste api.php y config.php al hosting?)" };
-    return await res.json();
+    const data = await res.json();
+    if (res.status === 401 && action !== "login"){
+      pinApp(true);
+      const err = document.getElementById("loginErr");
+      if (err) err.textContent = "Sesión expirada. Entra de nuevo.";
+    }
+    return data;
   } catch(e) {
     return { ok:false, error: "Sin conexión: " + e.message };
   }
@@ -704,7 +774,8 @@ async function probarSync(){
 window.addEventListener("beforeunload", guardar);
 cargar();
 cargarSync();
-renderHistorial();
+pinApp(!getToken());
+if (getToken()) renderHistorial();
 </script>
 </body>
 </html>
