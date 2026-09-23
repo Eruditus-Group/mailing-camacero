@@ -116,7 +116,7 @@
 
   <div class="card" id="syncCard">
     <h2>Sincronización en la nube (MySQL Hostinger)</h2>
-    <p class="hint" style="margin:0 0 4px;">Sube los archivos <b>api.php</b> y <b>config.php</b> a tu hosting (junto a este index.html), importa <b>boletines.sql</b> en phpMyAdmin y pega aquí la URL de la API para que el historial sea compartido por todo el equipo.</p>
+    <p class="hint" style="margin:0 0 4px;">El historial se guarda en MySQL de Hostinger por defecto (usa <b>api.php</b> del propio dominio y crea la tabla automáticamente al primer uso). Solo cámbialo si abres la app desde GitHub Pages: pega aquí <b>https://tudominio.com/boletín/api.php</b>.</p>
     <div class="row">
       <div style="flex:2;">
         <label>URL de la API (api.php)</label>
@@ -129,9 +129,9 @@
       <span id="syncStatus" style="font-size:12px;"></span>
     </div>
     <div class="hint" style="margin-top:8px;">
-      Pasos: 1) En hPanel → Bases de datos → MySQL, crea la BD y anota usuario, contraseña y nombre.&nbsp;
-      2) En phpMyAdmin importa <b>boletines.sql</b>.&nbsp;
-      3) Edita <b>config.php</b> con esos datos y súbelo junto a <b>api.php</b> a tu hosting.
+      Pasos (Hostinger): 1) En hPanel → Bases de datos → MySQL crea la BD y anota el nombre (ya tienes <b>u670367658_boletin</b>).&nbsp;
+      2) Edita <b>config.php</b> con esos datos si hicieron falta y súbelo junto a <b>api.php</b>.&nbsp;
+      3) La tabla se crea sola la primera vez que funciona.
     </div>
   </div>
 
@@ -560,7 +560,8 @@ function getLocalHist(){
 }
 
 function getApiUrl(){
-  return (localStorage.getItem("api_url") || "").trim();
+  const saved = (localStorage.getItem("api_url") || "").trim();
+  return saved || "api.php";
 }
 
 async function apiCall(action, extra){
@@ -679,7 +680,7 @@ async function vaciarHistorial(){
 // ---------- Configuración MySQL (Hostinger) ----------
 function cargarSync(){
   const u = localStorage.getItem("api_url");
-  if (u) document.getElementById("api_url").value = u;
+  document.getElementById("api_url").value = u || "api.php";
 }
 function guardarSync(){
   const u = document.getElementById("api_url").value.trim();
